@@ -9,8 +9,9 @@ To install do
 
 perl Makefile.PL
 make
+make test
 make install
 
-Copyright (c) 2004 Roberto Alamos Moreno <ralamosm@gmail.com>.
+Copyright (c) 2004 Roberto Alamos Moreno <ralamosm@cpan.org>.
 All rights reserved.  This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

@@ -1,7 +1,7 @@
 #
 # OO methods that calculates #B(n) on Thompson group F
 #
-# Author: Roberto Alamos Moreno <ralamosm@gmail.com>
+# Author: Roberto Alamos Moreno <ralamosm@cpan.org>
 #
 # Copyright (c) 2004 Roberto Alamos Moreno. All rights reserved.
 # This program is free software; you can redistribute it and/or
@@ -14,6 +14,8 @@ package Math::Group::Thompson;
 $VERSION = '0.9';
 
 use strict;
+use warnings;
+use diagnostics;
 
 =head1 NAME
 
@@ -251,6 +253,7 @@ F is of exponential growth.
 =cut
 sub cardBn {
   my ($self,$n,$g) = @_;
+  if(!defined $g) { $g = ""; }
   if(!defined $self || !ref $self || !defined $n || $n < 0 || $n =~ /\D/ || $g =~ /[^ABCD]/) {
     return;
   }
@@ -268,14 +271,21 @@ sub cardBn {
 
   # For every element A,B,A^(-1) and B^(-1)
   for(0..3) {
-    my $aux_g = $self->multiply($g,$self->{GEN}->[$_]); # Multiple $g by one of the generators
+    my $aux_g = $self->multiply($g,$self->{GEN}->[$_]) || ''; # Multiple $g by one of the generators
     my $i = 0; # Flag that say if the new word contains
 
     # Check if the new word is one letter larger than the previous one
-    if(length($aux_g) == (length($g) + 1)) {
+    my ($length_g,$length_auxg) = (0,0);
+    if($g ne '') {
+      $length_g += length($g);
+    }
+    if($aux_g ne '') {
+      $length_auxg += length($aux_g);
+    }
+    if($length_auxg == ($length_g + 1)) {
       # Check if some prohibited word is in $aux_g
       LOOP: for(5..8) {
-	if(length $aux_g >= $_) {
+	if($length_auxg >= $_) {
 	  # Check if the word contains any prohibited relation
 	  foreach my $rel (@{$self->{REL}->[$_-5]}) {
 	    if($aux_g =~ /$rel$/) {
@@ -450,9 +460,7 @@ of the word, and the second is the inverse of the
 second half of the word.
 
 Usage: $w = 'AABC';
-       ($w1,$w2) = $self->reduce($w);
-
-       # Now $w1 == 'AA' and $w2 == 'AD'
+       ($w1,$w2) = $self->reduce($w); # Now $w1 == 'AA' and $w2 == 'AD'
 
 =cut
 sub reduce {
@@ -502,7 +510,7 @@ sub note {
 
 =head1 AUTHOR
 
-Roberto Alamos Moreno <ralamosm@gmail.com>
+Roberto Alamos Moreno <ralamosm@cpan.org>
 
 =head1 COPYRIGHT
 
