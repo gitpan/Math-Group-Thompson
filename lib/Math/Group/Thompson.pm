@@ -11,11 +11,12 @@
 #
 package Math::Group::Thompson;
 
-$VERSION = '0.9';
+$VERSION = '0.96';
 
 use strict;
 use warnings;
-use diagnostics;
+
+use FileHandle;
 
 =head1 NAME
 
@@ -39,9 +40,10 @@ of Thompson group F.
 
 This module uses the presentation of F
 
-F = < A,B | [AB^(-1),A^(-1)BA] = [AB^(-1),A^(-2)BA^2] = 1 >
+F = < A,B | [AB^(-1),A^(-1)BA] = [AB^(-1),A^(-2)BA^2] = e >
 
-where A,B are formal symbols and [x,y] is the usual commutator
+where A,B are formal symbols, [x,y] is the usual commutator and e
+is the identity element of F.
 
 [x,y] = xyx^(-1)y^(-1)
 
@@ -53,12 +55,14 @@ where all the a_{i} are A,B,A^(-1) or B^(-1) for all i <= n.
 Internally, Math::Group::Thompson representates A,B,A^(-1),B^(-1) as
 A,B,C,D respectively.
 
-Considering the set S = { A,B,A^(-1),B^(-1) } as a base for F,
-one can define the length function L, as
+Considering the set S = { A,B,A^(-1),B^(-1) } as a generator set for F.
+One can define the length function L, as
 
 L(g) = min{ n | g can be written as a word with n elements of S }
 
-With this definition, the ball of radius n of F, can de defined as
+We have to define L(e) = 0
+
+With this definition, the ball of radius n of F, can be defined as
 
 B(n) = { g in F | L(g) <= n }
 
@@ -72,8 +76,8 @@ so
 #B(n+1) = #(AB(n)-B(n))+#(BB(n)-B(n))+#(CB(n)-B(n))+#(DB(n)-B(n))+#B(n)
 
 Also, this module stores some special relations derived from 
-[AB^(-1),A^(-1)BA] = [AB^(-1),A^(-2)BA^2] = 1 that must me avoided when 
-counting the elements of B(n). For example, from [AB^(-1),A^(-1)BA] = 1 
+[AB^(-1),A^(-1)BA] = [AB^(-1),A^(-2)BA^2] = e that must me avoided when 
+counting the elements of B(n). For example, from [AB^(-1),A^(-1)BA] = e 
 it can be derived the relations
 
 A^(-1)BAA = AB^(-1)A^(-1)BAB
@@ -105,7 +109,18 @@ Creates the Thompson object.
 Usage: my $F = new->Math::Group::Thompson( VERBOSE => $v );
 
 Verbose argument tells Math::Group::Thompson whether print every
-word generated ($v == 1) or not ($v == 0). 
+word generated ($v == 1) or not ($v == 0), or store them
+in a file, where $v is the name of the file (obviously different
+to 0 or 1). If the verbose file exists it is replaced, so you have to
+check for its integrity.
+
+  NOTE:
+  It's not recommend to store the words on a file because for
+  very small values of n, #B(n) or #gB(n)-B(n) are very very large.
+  For example for n = 19, #B(n) ~ 3^n = 1162261467 ~ 1.1 Giga, but
+  the space ocupped by the file will be (in bytes):
+
+  #B(1) + sum(i=2 to 19){i*(#B(i) - #B(i-1))} = 
 
 =cut
 sub new {
@@ -114,7 +129,7 @@ sub new {
     return undef;
   }
 
-  my %args = ( VERBOSE => 0,
+  my %args = ( VERBOSE => 0, # By default don't print anything
 	       @_ );
 
   # Inverse elements
@@ -215,7 +230,15 @@ sub new {
 
 
   # Define the generator set S = { A,B,A^(-1),B^(-1) }
-  my @generators = ('B','A','D','C');;
+  my @generators = ('B','A','D','C');
+
+  # Open filehandle if we have to
+  my $fh;
+  if($args{VERBOSE}) {
+    if($args{VERBOSE} ne '1') {
+      $fh = new FileHandle ">".$args{VERBOSE} || undef;
+    }
+  }
 
   return bless { INV => $inv,                          # Inverse relations
 		 REL => [\@rel5,\@rel6,\@rel7,\@rel8], # Prohibited words
@@ -224,6 +247,7 @@ sub new {
 		 FIRST_ELEMENT => '',		       # F's element passed to the firs call of method cardBn
 		 FIRST_CALL => 1,                      # Flag of first call to method cardBn
 		 VERBOSE => $args{VERBOSE},            # Verbose mode
+                 FILEHANDLE => \$fh,                   # Filehandler
 	       }, $class;
 }
 
@@ -248,14 +272,15 @@ If the firs time cardBn is callen $g is equal to '', then
 cardBn returns #B(n).
 
 This algorithm runs on exponential time because
-F is of exponential growth.
+F is of exponential growth (more "exactly", this algorithm is
+O(3^n) ).
 
 =cut
 sub cardBn {
   my ($self,$n,$g) = @_;
   if(!defined $g) { $g = ""; }
   if(!defined $self || !ref $self || !defined $n || $n < 0 || $n =~ /\D/ || $g =~ /[^ABCD]/) {
-    return;
+    return undef;
   }
   if($n == 0) {
     # We have to calculate #B(0) or #(gB(0) - B(0)). In any case is 1
@@ -267,6 +292,9 @@ sub cardBn {
     # The first element passed to cardBn is $g. Keep it
     $self->{FIRST_ELEMENT} = $g || '';
     $self->{FIRST_CALL} = 0;
+    if($self->{FIRST_ELEMENT} eq '') {
+      $self->note('e');
+    }
   }
 
   # For every element A,B,A^(-1) and B^(-1)
@@ -305,14 +333,15 @@ sub cardBn {
 	  if(length($aux_g) < ($n + length($self->{FIRST_ELEMENT}))) {
 	    $self->cardBn($n,$aux_g);
 	  } else {
+            # Count this element
 	    # Print word if VERBOSE == 1
-	    if($self->{VERBOSE}) {note($aux_g);}
+	    $self->note($aux_g);
 	    $self->{COUNTER}++;
 	  }
 	} else {
 	  # Count this element
 	  # Print word if VERBOSE == 1
-	  if($self->{VERBOSE} == 1) {note($aux_g);}
+	  $self->note($aux_g);
 	  $self->{COUNTER}++;
 
 	  # First element was empty. We are calculating #B(n)
@@ -339,7 +368,7 @@ Resets the counter used on cardBn method, set
 the FIRST_ELEMENT property at '', and the FIRST_CALL
 proporty to 1.
 
-Usage: $F->resetcounter;
+Usage: $F->reset;
 
 =cut
 sub reset {
@@ -388,10 +417,14 @@ sub multiply {
     return $h;
   }
 
+  # Get inverse relations
+  my %inv = $self->get_inv;
+
+  # Multiply
   my @h = split(//,$h);
   foreach my $el (@h) {
     $g =~ /(.)$/;
-    if($1 ne $self->{INV}->{$el}) {
+    if($1 ne $inv{$el}) {
       return $g.$h;
     } else {
       $g =~ s/.$//;
@@ -452,18 +485,18 @@ sub inverse {
   return reverse $word;
 }
 
-=item reduce
+=item divide
 
-This method receives a word in F and returns an
+This method receives a word in F and returns a 2-dimensional
 array where the first element is the first half
 of the word, and the second is the inverse of the
 second half of the word.
 
 Usage: $w = 'AABC';
-       ($w1,$w2) = $self->reduce($w); # Now $w1 == 'AA' and $w2 == 'AD'
+       ($w1,$w2) = $self->divide($w); # Now $w1 == 'AA' and $w2 == 'AD'
 
 =cut
-sub reduce {
+sub divide {
   my ($self,$word) = @_;
   if(!defined $self || !defined $word) {
     return undef;
@@ -495,22 +528,60 @@ sub get_inv {
 
 =item note
 
-This functions prints in STDERR the string received
+This method prints in STDERR the string received or
+puts it on the correspondent file.
 
-Usage: note('AA'); # Print AA."\n"
+Usage: $F->note('AA'); # Print AA."\n" or store it on a file.
 
 =cut
 sub note {
+  my $self = shift || undef;
+  if(!defined $self) {
+    return undef;
+  }
+
   my $g = shift || return undef;
 
-  print STDERR $g,"\n";
+  if($self->{VERBOSE}) {
+    if($self->{VERBOSE} eq '1') {
+      # Print word to STDERR
+      print STDERR $g,"\n";
+    } else {
+      # Put word on the correspondent file
+      if($self->{FILEHANDLE} && ref(${$self->{FILEHANDLE}}) eq 'FileHandle') {
+        my $fh = ${$self->{FILEHANDLE}};
+        print $fh $g,"\n";
+      }
+    }
+  }
+}
+
+# Destroy function. Closes the filehandle opened in 'new' method (if it was opened).
+sub DESTROY {
+  my $self = shift || undef;
+  if(!defined $self) {
+    return undef;
+  }
+
+  if($self->{VERBOSE}) {
+    if($self->{VERBOSE} ne '1' && ref(${$self->{FILEHANDLE}}) eq 'FileHandle') {
+      ${$self->{FILEHANDLE}}->close if $self->{FILEHANDLE};
+    }
+  }
 }
 
 =back 4
 
+=head1 BUGS
+
+There isn't reported bugs yet, but that doesn't mean that there aren't ;) .
+
 =head1 AUTHOR
 
 Roberto Alamos Moreno <ralamosm@cpan.org>
+
+Thanks to professor Juan Rivera Letelier for his support to my thesis work, and help in the design
+of cardBn algorithm :) .
 
 =head1 COPYRIGHT
 

@@ -19,10 +19,8 @@ if(!exists $args{r}) {
 
 # Check verbose
 my $verbose = 0;
-if(exists $args{v} && $args{v} !~ /\D/) {
-  if($args{v} == 1) {
-    $verbose = $args{v};
-  }
+if(exists $args{v}) {
+  $verbose = $args{v};
 }
 
 # Check the word in F
