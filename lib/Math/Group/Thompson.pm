@@ -11,7 +11,7 @@
 #
 package Math::Group::Thompson;
 
-$VERSION = '0.8';
+$VERSION = '0.9';
 
 use strict;
 
@@ -289,19 +289,20 @@ sub cardBn {
 
       # Check if we foun any prohibited word
       if($i == 0) {
-	# Print word if VERBOSE == 1
-	if($self->{VERBOSE} == 1) {note($aux_g);}
-
 	# Determine if we are calculating #B(n) or #(gB(n) - B(n)) where g is the first argument received by cardBn
 	if($self->{FIRST_ELEMENT} ne '') {
 	  # First element wasn't ''. We are calculating #(gB(n) - B(n))
 	  if(length($aux_g) < ($n + length($self->{FIRST_ELEMENT}))) {
 	    $self->cardBn($n,$aux_g);
 	  } else {
+	    # Print word if VERBOSE == 1
+	    if($self->{VERBOSE}) {note($aux_g);}
 	    $self->{COUNTER}++;
 	  }
 	} else {
 	  # Count this element
+	  # Print word if VERBOSE == 1
+	  if($self->{VERBOSE} == 1) {note($aux_g);}
 	  $self->{COUNTER}++;
 
 	  # First element was empty. We are calculating #B(n)
@@ -314,6 +315,7 @@ sub cardBn {
     }
   }
 
+  # Return
   if($self->{FIRST_ELEMENT} eq '') {
     return $self->{COUNTER} + 1; # Returns #B(n). The 1 is for the identity element
   } else {
